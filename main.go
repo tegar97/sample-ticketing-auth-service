@@ -21,6 +21,11 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
+	// Run auto migration
+	if err := config.AutoMigrate(db); err != nil {
+		log.Fatal("Failed to run database migration:", err)
+	}
+
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	authHandler := handler.NewAuthHandler(authService)
