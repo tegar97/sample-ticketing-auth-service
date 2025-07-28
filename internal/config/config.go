@@ -12,11 +12,20 @@ import (
 )
 
 type Config struct {
-	DBHost     string
-	DBPort     string
-	DBName     string
-	DBUser     string
-	DBPassword string
+	// Master database configuration
+	DBMasterHost     string
+	DBMasterPort     string
+	DBMasterName     string
+	DBMasterUser     string
+	DBMasterPassword string
+
+	// Replica database configuration
+	DBReplicaHost     string
+	DBReplicaPort     string
+	DBReplicaName     string
+	DBReplicaUser     string
+	DBReplicaPassword string
+
 	JWTSecret  string
 }
 
@@ -25,11 +34,20 @@ func Load() *Config {
 	loadEnvFile()
 
 	return &Config{
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBName:     getEnv("DB_NAME", "ticketing_db"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", "password"),
+		// Master database configuration
+		DBMasterHost:     getEnv("DB_MASTER_HOST", getEnv("DB_HOST", "localhost")),
+		DBMasterPort:     getEnv("DB_MASTER_PORT", getEnv("DB_PORT", "5432")),
+		DBMasterName:     getEnv("DB_MASTER_NAME", getEnv("DB_NAME", "ticketing_db")),
+		DBMasterUser:     getEnv("DB_MASTER_USER", getEnv("DB_USER", "postgres")),
+		DBMasterPassword: getEnv("DB_MASTER_PASSWORD", getEnv("DB_PASSWORD", "password")),
+
+		// Replica database configuration (fallback to master if not specified)
+		DBReplicaHost:     getEnv("DB_REPLICA_HOST", getEnv("DB_MASTER_HOST", getEnv("DB_HOST", "localhost"))),
+		DBReplicaPort:     getEnv("DB_REPLICA_PORT", getEnv("DB_MASTER_PORT", getEnv("DB_PORT", "5432"))),
+		DBReplicaName:     getEnv("DB_REPLICA_NAME", getEnv("DB_MASTER_NAME", getEnv("DB_NAME", "ticketing_db"))),
+		DBReplicaUser:     getEnv("DB_REPLICA_USER", getEnv("DB_MASTER_USER", getEnv("DB_USER", "postgres"))),
+		DBReplicaPassword: getEnv("DB_REPLICA_PASSWORD", getEnv("DB_MASTER_PASSWORD", getEnv("DB_PASSWORD", "password"))),
+
 		JWTSecret:  getEnv("JWT_SECRET", "your-jwt-secret-key"),
 	}
 }
@@ -70,21 +88,66 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-func ConnectDB(cfg *Config) (*sql.DB, error) {
+// DBConnections holds both master and replica database connections
+type DBConnections struct {
+	Master  *sql.DB
+	Replica *sql.DB
+}
+
+func ConnectMasterDB(cfg *Config) (*sql.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable search_path=public",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+		cfg.DBMasterHost, cfg.DBMasterPort, cfg.DBMasterUser, cfg.DBMasterPassword, cfg.DBMasterName)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
-        fmt.Printf("Connecting to PostgreSQL: %s:%s/%s\n", cfg.DBHost, cfg.DBPort, cfg.DBName)
+	fmt.Printf("Connecting to Master PostgreSQL: %s:%s/%s\n", cfg.DBMasterHost, cfg.DBMasterPort, cfg.DBMasterName)
 
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func ConnectReplicaDB(cfg *Config) (*sql.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable search_path=public",
+		cfg.DBReplicaHost, cfg.DBReplicaPort, cfg.DBReplicaUser, cfg.DBReplicaPassword, cfg.DBReplicaName)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Connecting to Replica PostgreSQL: %s:%s/%s\n", cfg.DBReplicaHost, cfg.DBReplicaPort, cfg.DBReplicaName)
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func ConnectDatabases(cfg *Config) (*DBConnections, error) {
+	masterDB, err := ConnectMasterDB(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to master database: %v", err)
+	}
+
+	replicaDB, err := ConnectReplicaDB(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to replica database: %v", err)
+	}
+
+	return &DBConnections{
+		Master:  masterDB,
+		Replica: replicaDB,
+	}, nil
+}
+
+// ConnectDB maintains backward compatibility - connects to master database
+func ConnectDB(cfg *Config) (*sql.DB, error) {
+	return ConnectMasterDB(cfg)
 }
 
 // AutoMigrate creates the necessary database tables if they don't exist

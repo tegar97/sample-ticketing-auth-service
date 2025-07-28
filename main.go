@@ -16,17 +16,17 @@ import (
 func main() {
 	cfg := config.Load()
 
-	db, err := config.ConnectDB(cfg)
+	dbConnections, err := config.ConnectDatabases(cfg)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatal("Failed to connect to databases:", err)
 	}
 
-	// Run auto migration
-	if err := config.AutoMigrate(db); err != nil {
+	// Run auto migration on master database
+	if err := config.AutoMigrate(dbConnections.Master); err != nil {
 		log.Fatal("Failed to run database migration:", err)
 	}
 
-	userRepo := repository.NewUserRepository(db)
+	userRepo := repository.NewUserRepository(dbConnections.Master, dbConnections.Replica)
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	authHandler := handler.NewAuthHandler(authService)
 

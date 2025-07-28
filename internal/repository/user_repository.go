@@ -8,11 +8,15 @@ import (
 )
 
 type UserRepository struct {
-	db *sql.DB
+	masterDB  *sql.DB
+	replicaDB *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepository(masterDB, replicaDB *sql.DB) *UserRepository {
+	return &UserRepository{
+		masterDB:  masterDB,
+		replicaDB: replicaDB,
+	}
 }
 
 func (r *UserRepository) Create(user *models.User) error {
@@ -24,7 +28,7 @@ func (r *UserRepository) Create(user *models.User) error {
         RETURNING created_at, updated_at
     `
 
-	err := r.db.QueryRow(query, user.ID, user.Email, user.Password, user.Name).
+	err := r.masterDB.QueryRow(query, user.ID, user.Email, user.Password, user.Name).
 		Scan(&user.CreatedAt, &user.UpdatedAt)
 
 	return err
@@ -39,7 +43,7 @@ func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
         WHERE email = $1
     `
 
-	err := r.db.QueryRow(query, email).Scan(
+	err := r.replicaDB.QueryRow(query, email).Scan(
 		&user.ID, &user.Email, &user.Password, &user.Name,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
@@ -60,7 +64,7 @@ func (r *UserRepository) GetByID(id string) (*models.User, error) {
         WHERE id = $1
     `
 
-	err := r.db.QueryRow(query, id).Scan(
+	err := r.replicaDB.QueryRow(query, id).Scan(
 		&user.ID, &user.Email, &user.Password, &user.Name,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
