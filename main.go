@@ -45,6 +45,23 @@ func main() {
 		c.Next()
 	})
 
+	// Root route
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service": "auth-service",
+			"status":  "running",
+			"version": "1.0.0",
+		})
+	})
+
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"service": "auth-service",
+		})
+	})
+
 	api := r.Group("/api/v1")
 	{
 		api.POST("/register", authHandler.Register)
