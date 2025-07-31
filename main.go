@@ -48,7 +48,7 @@ func main() {
 	// Root route
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"service": "auth-service",
+			"service": "auth-service update",
 			"status":  "running",
 			"version": "1.0.0",
 		})
@@ -57,7 +57,7 @@ func main() {
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status": "healthy",
+			"status":  "healthy",
 			"service": "auth-service",
 		})
 	})
