@@ -79,7 +79,6 @@ func main() {
 		api.GET("/validate", authHandler.ValidateToken)
 
 		// Session management endpoints
-		api.GET("/sessions", authHandler.GetSessions)
 		api.POST("/sessions/revoke", authHandler.RevokeSession)
 		api.POST("/sessions/revoke-all", authHandler.RevokeAllSessions)
 
