@@ -219,6 +219,133 @@ func (h *AuthHandler) GetActivities(c *gin.Context) {
 	c.JSON(http.StatusOK, activities)
 }
 
+// Password Reset Endpoints
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req models.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ipAddress := h.getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	response, err := h.authService.ForgotPassword(&req, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req models.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ipAddress := h.getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	response, err := h.authService.ResetPassword(&req, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	token := h.extractToken(c)
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
+		return
+	}
+
+	var req models.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ipAddress := h.getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	user, err := h.authService.ValidateToken(token, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := h.authService.ChangePassword(user.ID, &req, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Profile Management Endpoints
+func (h *AuthHandler) GetUserProfile(c *gin.Context) {
+	token := h.extractToken(c)
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
+		return
+	}
+
+	ipAddress := h.getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	user, err := h.authService.ValidateToken(token, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	profile, err := h.authService.GetUserProfile(user.ID, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, profile)
+}
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	token := h.extractToken(c)
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
+		return
+	}
+
+	var req models.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ipAddress := h.getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	user, err := h.authService.ValidateToken(token, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := h.authService.UpdateProfile(user.ID, &req, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // Helper Methods
 func (h *AuthHandler) getClientIP(c *gin.Context) string {
 	// Check for X-Forwarded-For header (common in load balancers/proxies)

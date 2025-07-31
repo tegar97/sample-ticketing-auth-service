@@ -73,6 +73,69 @@ type RevokeSessionRequest struct {
 	SessionID string `json:"session_id" binding:"required"`
 }
 
+// Password Reset Models
+type PasswordResetToken struct {
+	ID        string    `json:"id" db:"id"`
+	UserID    string    `json:"user_id" db:"user_id"`
+	Token     string    `json:"token" db:"token"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	Used      bool      `json:"used" db:"used"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
+}
+
+// Profile Management Models
+type UpdateProfileRequest struct {
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
+}
+
+type UserProfile struct {
+	ID                string    `json:"id"`
+	Email             string    `json:"email"`
+	Name              string    `json:"name"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
+	ActiveSessionsCount int      `json:"active_sessions_count"`
+	TotalActivities   int       `json:"total_activities"`
+}
+
+// Response Models
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+type ChangePasswordResponse struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+type UpdateProfileResponse struct {
+	Message string      `json:"message"`
+	Success bool        `json:"success"`
+	User    UserProfile `json:"user"`
+}
+
 // Activity Types
 const (
 	ActivityLogin          = "login"
@@ -82,4 +145,6 @@ const (
 	ActivitySessionRevoke  = "session_revoke"
 	ActivityPasswordChange = "password_change"
 	ActivityProfileUpdate  = "profile_update"
+	ActivityPasswordReset  = "password_reset"
+	ActivityForgotPassword = "forgot_password"
 )

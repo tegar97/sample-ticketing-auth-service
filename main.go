@@ -62,26 +62,30 @@ func main() {
 		})
 	})
 
-	r.GET("/forgot-password", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "healthy",
-			"feat":   "forgot-password ",
-		})
-	})
-
 	api := r.Group("/api/v1")
 	{
 		// Authentication endpoints
-
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
 		api.GET("/profile", authHandler.GetProfile)
 		api.GET("/validate", authHandler.ValidateToken)
 
+		// Password Reset endpoints
+		api.POST("/forgot-password", authHandler.ForgotPassword)
+		api.POST("/reset-password", authHandler.ResetPassword)
+		api.POST("/change-password", authHandler.ChangePassword)
+
+		// Profile Management endpoints
+		api.GET("/user/profile", authHandler.GetUserProfile)
+		api.PUT("/user/profile", authHandler.UpdateProfile)
+
 		// Session management endpoints
+		api.GET("/sessions", authHandler.GetSessions)
 		api.POST("/sessions/revoke", authHandler.RevokeSession)
 		api.POST("/sessions/revoke-all", authHandler.RevokeAllSessions)
 
+		// Activity logging endpoints
+		api.GET("/activities", authHandler.GetActivities)
 	}
 
 	port := os.Getenv("PORT")

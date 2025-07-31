@@ -159,9 +159,18 @@ func AutoMigrate(db *sql.DB) error {
 		email VARCHAR(255) UNIQUE NOT NULL,
 		password VARCHAR(255) NOT NULL,
 		name VARCHAR(255) NOT NULL,
+		last_login_at TIMESTAMP,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
+
+	-- Add last_login_at column if it doesn't exist (for existing installations)
+	DO $$ 
+	BEGIN 
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_login_at') THEN
+			ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP;
+		END IF;
+	END $$;
 
 	-- Create trigger to update updated_at column
 	CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -245,6 +254,30 @@ func AutoMigrate(db *sql.DB) error {
 	_, err = db.Exec(createActivitiesTable)
 	if err != nil {
 		return fmt.Errorf("failed to create user_activities table: %v", err)
+	}
+
+	// Create password reset tokens table
+	createPasswordResetTable := `
+	CREATE TABLE IF NOT EXISTS password_reset_tokens (
+		id VARCHAR(36) PRIMARY KEY,
+		user_id VARCHAR(36) NOT NULL,
+		token VARCHAR(255) UNIQUE NOT NULL,
+		expires_at TIMESTAMP NOT NULL,
+		used BOOLEAN DEFAULT false,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+	CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+	CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+	CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_used ON password_reset_tokens(used);
+	`
+
+	_, err = db.Exec(createPasswordResetTable)
+	if err != nil {
+		return fmt.Errorf("failed to create password_reset_tokens table: %v", err)
 	}
 
 	log.Println("Database migration completed successfully")

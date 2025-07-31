@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -103,17 +105,20 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login successful but session creation failed for %s", req.Email), true)
 	} else {
-		// Log successful login
-		s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent,
-			fmt.Sprintf("Login successful for %s", req.Email), true)
-	}
+ 	// Log successful login
+ 	s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent,
+ 		fmt.Sprintf("Login successful for %s", req.Email), true)
+ 	}
 
-	return &models.LoginResponse{
-		Token:     token,
-		User:      *user,
-		SessionID: session.ID,
-		ExpiresAt: expiresAt,
-	}, nil
+ 	// Update last login time
+ 	s.userRepo.UpdateLastLogin(user.ID)
+
+ 	return &models.LoginResponse{
+ 		Token:     token,
+ 		User:      *user,
+ 		SessionID: session.ID,
+ 		ExpiresAt: expiresAt,
+ 	}, nil
 }
 
 func (s *AuthService) ValidateToken(tokenString string, ipAddress, userAgent string) (*models.User, error) {
@@ -220,6 +225,195 @@ func (s *AuthService) GetUserActivities(userID string, limit, offset int) (*mode
 	}, nil
 }
 
+// Password Reset Methods
+func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddress, userAgent string) (*models.ForgotPasswordResponse, error) {
+	user, err := s.userRepo.GetByEmail(req.Email)
+	if err != nil {
+		// Log failed forgot password attempt but don't reveal if email exists
+		s.logActivity("", "", models.ActivityForgotPassword, ipAddress, userAgent,
+			fmt.Sprintf("Forgot password failed: email %s not found", req.Email), false)
+
+		// Return success message to prevent email enumeration
+		return &models.ForgotPasswordResponse{
+			Message: "If the email exists, a password reset link has been sent",
+			Success: true,
+		}, nil
+	}
+
+	// Generate secure reset token
+	token, err := s.generateSecureToken()
+	if err != nil {
+		s.logActivity(user.ID, "", models.ActivityForgotPassword, ipAddress, userAgent,
+			"Forgot password failed: token generation error", false)
+		return nil, errors.New("failed to generate reset token")
+	}
+
+	// Create password reset token (expires in 1 hour)
+	resetToken := &models.PasswordResetToken{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(time.Hour),
+		Used:      false,
+	}
+
+	err = s.userRepo.CreatePasswordResetToken(resetToken)
+	if err != nil {
+		s.logActivity(user.ID, "", models.ActivityForgotPassword, ipAddress, userAgent,
+			"Forgot password failed: database error", false)
+		return nil, errors.New("failed to create reset token")
+	}
+
+	// Log successful forgot password request
+	s.logActivity(user.ID, "", models.ActivityForgotPassword, ipAddress, userAgent,
+		fmt.Sprintf("Password reset token generated for %s", req.Email), true)
+
+	return &models.ForgotPasswordResponse{
+		Message: "If the email exists, a password reset link has been sent",
+		Success: true,
+	}, nil
+}
+
+func (s *AuthService) ResetPassword(req *models.ResetPasswordRequest, ipAddress, userAgent string) (*models.ResetPasswordResponse, error) {
+	// Get and validate reset token
+	resetToken, err := s.userRepo.GetPasswordResetToken(req.Token)
+	if err != nil {
+		s.logActivity("", "", models.ActivityPasswordReset, ipAddress, userAgent,
+			"Password reset failed: invalid or expired token", false)
+		return nil, errors.New("invalid or expired reset token")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		s.logActivity(resetToken.UserID, "", models.ActivityPasswordReset, ipAddress, userAgent,
+			"Password reset failed: password hashing error", false)
+		return nil, errors.New("failed to process new password")
+	}
+
+	// Update user password
+	err = s.userRepo.UpdatePassword(resetToken.UserID, string(hashedPassword))
+	if err != nil {
+		s.logActivity(resetToken.UserID, "", models.ActivityPasswordReset, ipAddress, userAgent,
+			"Password reset failed: database error", false)
+		return nil, errors.New("failed to update password")
+	}
+
+	// Mark token as used
+	s.userRepo.MarkPasswordResetTokenAsUsed(resetToken.ID)
+
+	// Invalidate all user sessions for security
+	s.sessionRepo.RevokeAllUserSessions(resetToken.UserID)
+
+	// Log successful password reset
+	s.logActivity(resetToken.UserID, "", models.ActivityPasswordReset, ipAddress, userAgent,
+		"Password reset successful", true)
+
+	return &models.ResetPasswordResponse{
+		Message: "Password has been reset successfully",
+		Success: true,
+	}, nil
+}
+
+func (s *AuthService) ChangePassword(userID string, req *models.ChangePasswordRequest, ipAddress, userAgent string) (*models.ChangePasswordResponse, error) {
+	// Get user to verify current password
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityPasswordChange, ipAddress, userAgent,
+			"Password change failed: user not found", false)
+		return nil, errors.New("user not found")
+	}
+
+	// Verify current password
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.CurrentPassword))
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityPasswordChange, ipAddress, userAgent,
+			"Password change failed: invalid current password", false)
+		return nil, errors.New("current password is incorrect")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityPasswordChange, ipAddress, userAgent,
+			"Password change failed: password hashing error", false)
+		return nil, errors.New("failed to process new password")
+	}
+
+	// Update password
+	err = s.userRepo.UpdatePassword(userID, string(hashedPassword))
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityPasswordChange, ipAddress, userAgent,
+			"Password change failed: database error", false)
+		return nil, errors.New("failed to update password")
+	}
+
+	// Invalidate all other user sessions for security (keep current session)
+	s.userRepo.InvalidateUserPasswordResetTokens(userID)
+
+	// Log successful password change
+	s.logActivity(userID, "", models.ActivityPasswordChange, ipAddress, userAgent,
+		"Password changed successfully", true)
+
+	return &models.ChangePasswordResponse{
+		Message: "Password has been changed successfully",
+		Success: true,
+	}, nil
+}
+
+// Profile Management Methods
+func (s *AuthService) GetUserProfile(userID string, ipAddress, userAgent string) (*models.UserProfile, error) {
+	profile, err := s.userRepo.GetUserProfile(userID)
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+			"Profile retrieval failed", false)
+		return nil, errors.New("failed to retrieve user profile")
+	}
+
+	// Log profile access
+	s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+		"Profile retrieved successfully", true)
+
+	return profile, nil
+}
+
+func (s *AuthService) UpdateProfile(userID string, req *models.UpdateProfileRequest, ipAddress, userAgent string) (*models.UpdateProfileResponse, error) {
+	// Check if email is already taken by another user
+	if existingUser, _ := s.userRepo.GetByEmail(req.Email); existingUser != nil && existingUser.ID != userID {
+		s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+			fmt.Sprintf("Profile update failed: email %s already exists", req.Email), false)
+		return nil, errors.New("email is already taken")
+	}
+
+	// Update profile
+	err := s.userRepo.UpdateProfile(userID, req)
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+			"Profile update failed: database error", false)
+		return nil, errors.New("failed to update profile")
+	}
+
+	// Get updated profile
+	profile, err := s.userRepo.GetUserProfile(userID)
+	if err != nil {
+		s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+			"Profile update successful but retrieval failed", true)
+		return &models.UpdateProfileResponse{
+			Message: "Profile updated successfully",
+			Success: true,
+		}, nil
+	}
+
+	// Log successful profile update
+	s.logActivity(userID, "", models.ActivityProfileUpdate, ipAddress, userAgent,
+		"Profile updated successfully", true)
+
+	return &models.UpdateProfileResponse{
+		Message: "Profile updated successfully",
+		Success: true,
+		User:    *profile,
+	}, nil
+}
+
 // Helper Methods
 func (s *AuthService) logActivity(userID, sessionID, action, ipAddress, userAgent, details string, success bool) {
 	activity := &models.UserActivity{
@@ -279,4 +473,13 @@ func (s *AuthService) generateJWT(userID string) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
+}
+
+func (s *AuthService) generateSecureToken() (string, error) {
+	bytes := make([]byte, 32) // 256 bits
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
