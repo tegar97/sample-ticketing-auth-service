@@ -74,7 +74,7 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
 
-		return nil, errors.New("invalid credentials")
+		return nil, errors.New("token invalid credentials")
 	}
 
 	expiresAt := time.Now().Add(time.Hour * 24)
