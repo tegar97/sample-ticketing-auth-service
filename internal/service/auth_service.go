@@ -73,7 +73,6 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
-		// Log failed login attempt
 		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login failed: invalid password for %s", req.Email), false)
 		return nil, errors.New("invalid credentials")
