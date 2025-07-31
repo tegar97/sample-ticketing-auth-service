@@ -84,7 +84,6 @@ func main() {
 		api.POST("/sessions/revoke-all", authHandler.RevokeAllSessions)
 
 		// Activity logging endpoints
-		api.GET("/activities", authHandler.GetActivities)
 	}
 
 	port := os.Getenv("PORT")
