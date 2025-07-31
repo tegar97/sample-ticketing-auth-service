@@ -67,9 +67,7 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent string) (*models.LoginResponse, error) {
 	user, err := s.userRepo.GetByEmail(req.Email)
 	if err != nil {
-		// Log failed login attempt
-		s.logActivity("", "", models.ActivityLogin, ipAddress, userAgent,
-			fmt.Sprintf("Login failed: invalid 2email %s", req.Email), false)
+
 		return nil, errors.New("invalid credentials")
 	}
 
