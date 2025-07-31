@@ -72,6 +72,7 @@ func main() {
 	api := r.Group("/api/v1")
 	{
 		// Authentication endpoints
+
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
 		api.GET("/profile", authHandler.GetProfile)
