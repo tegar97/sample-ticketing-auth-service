@@ -45,7 +45,6 @@ func main() {
 		c.Next()
 	})
 
-	// Root route
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"service": "auth-service update",
@@ -59,6 +58,13 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "healthy",
 			"service": "auth-service",
+		})
+	})
+
+	r.GET("/forgot-password", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"feat":   "forgot-password",
 		})
 	})
 
