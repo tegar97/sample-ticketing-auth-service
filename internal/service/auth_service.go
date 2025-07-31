@@ -243,7 +243,6 @@ func (s *AuthService) extractDeviceInfo(userAgent string) string {
 		return "Unknown Device"
 	}
 
-	// Simple device detection based on user agent
 	userAgent = strings.ToLower(userAgent)
 
 	if strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "android") || strings.Contains(userAgent, "iphone") {
