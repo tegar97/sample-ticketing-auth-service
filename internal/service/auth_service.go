@@ -105,20 +105,20 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login successful but session creation failed for %s", req.Email), true)
 	} else {
- 	// Log successful login
- 	s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent,
- 		fmt.Sprintf("Login successful for %s", req.Email), true)
- 	}
+		// Log successful login
+		s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent,
+			fmt.Sprintf("Login successful for %s", req.Email), true)
+	}
 
- 	// Update last login time
- 	s.userRepo.UpdateLastLogin(user.ID)
+	// Update last login time
+	s.userRepo.UpdateLastLogin(user.ID)
 
- 	return &models.LoginResponse{
- 		Token:     token,
- 		User:      *user,
- 		SessionID: session.ID,
- 		ExpiresAt: expiresAt,
- 	}, nil
+	return &models.LoginResponse{
+		Token:     token,
+		User:      *user,
+		SessionID: session.ID,
+		ExpiresAt: expiresAt,
+	}, nil
 }
 
 func (s *AuthService) ValidateToken(tokenString string, ipAddress, userAgent string) (*models.User, error) {
@@ -476,7 +476,7 @@ func (s *AuthService) generateJWT(userID string) (string, error) {
 }
 
 func (s *AuthService) generateSecureToken() (string, error) {
-	bytes := make([]byte, 32) // 256 bits
+	bytes := make([]byte, 32) // 256
 	_, err := rand.Read(bytes)
 	if err != nil {
 		return "", err
