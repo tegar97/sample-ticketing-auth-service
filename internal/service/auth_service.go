@@ -31,7 +31,7 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	existingUser, _ := s.userRepo.GetByEmail(req.Email)
 	if existingUser != nil {
 		// Log failed registration attempt
-		s.logActivity("", "", models.ActivityRegister, ipAddress, userAgent, 
+		s.logActivity("", "", models.ActivityRegister, ipAddress, userAgent,
 			fmt.Sprintf("Registration failed: email %s already exists", req.Email), false)
 		return nil, errors.New("email already exists")
 	}
@@ -50,13 +50,13 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	err = s.userRepo.Create(user)
 	if err != nil {
 		// Log failed registration attempt
-		s.logActivity("", "", models.ActivityRegister, ipAddress, userAgent, 
+		s.logActivity("", "", models.ActivityRegister, ipAddress, userAgent,
 			fmt.Sprintf("Registration failed: database error for %s", req.Email), false)
 		return nil, err
 	}
 
 	// Log successful registration
-	s.logActivity(user.ID, "", models.ActivityRegister, ipAddress, userAgent, 
+	s.logActivity(user.ID, "", models.ActivityRegister, ipAddress, userAgent,
 		fmt.Sprintf("User registered successfully: %s", req.Email), true)
 
 	return user, nil
@@ -66,7 +66,7 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	user, err := s.userRepo.GetByEmail(req.Email)
 	if err != nil {
 		// Log failed login attempt
-		s.logActivity("", "", models.ActivityLogin, ipAddress, userAgent, 
+		s.logActivity("", "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login failed: invalid email %s", req.Email), false)
 		return nil, errors.New("invalid credentials")
 	}
@@ -74,7 +74,7 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
 		// Log failed login attempt
-		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent, 
+		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login failed: invalid password for %s", req.Email), false)
 		return nil, errors.New("invalid credentials")
 	}
@@ -100,11 +100,11 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	err = s.sessionRepo.CreateSession(session)
 	if err != nil {
 		// Log session creation failure but don't fail login
-		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent, 
+		s.logActivity(user.ID, "", models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login successful but session creation failed for %s", req.Email), true)
 	} else {
 		// Log successful login
-		s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent, 
+		s.logActivity(user.ID, session.ID, models.ActivityLogin, ipAddress, userAgent,
 			fmt.Sprintf("Login successful for %s", req.Email), true)
 	}
 
@@ -121,7 +121,7 @@ func (s *AuthService) ValidateToken(tokenString string, ipAddress, userAgent str
 	session, err := s.sessionRepo.GetSessionByToken(tokenString)
 	if err != nil {
 		// Log failed token validation
-		s.logActivity("", "", models.ActivityTokenValidate, ipAddress, userAgent, 
+		s.logActivity("", "", models.ActivityTokenValidate, ipAddress, userAgent,
 			"Token validation failed: session not found", false)
 		return nil, errors.New("invalid token")
 	}
@@ -136,7 +136,7 @@ func (s *AuthService) ValidateToken(tokenString string, ipAddress, userAgent str
 
 	if err != nil || !token.Valid {
 		// Log failed token validation
-		s.logActivity(session.UserID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent, 
+		s.logActivity(session.UserID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent,
 			"Token validation failed: invalid JWT", false)
 		return nil, errors.New("invalid token")
 	}
@@ -154,13 +154,13 @@ func (s *AuthService) ValidateToken(tokenString string, ipAddress, userAgent str
 	user, err := s.userRepo.GetByID(userID)
 	if err != nil {
 		// Log failed token validation
-		s.logActivity(userID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent, 
+		s.logActivity(userID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent,
 			"Token validation failed: user not found", false)
 		return nil, errors.New("user not found")
 	}
 
 	// Log successful token validation
-	s.logActivity(user.ID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent, 
+	s.logActivity(user.ID, session.ID, models.ActivityTokenValidate, ipAddress, userAgent,
 		"Token validated successfully", true)
 
 	return user, nil
@@ -183,14 +183,10 @@ func (s *AuthService) RevokeSession(userID, sessionID string, ipAddress, userAge
 	err := s.sessionRepo.RevokeSession(sessionID)
 	if err != nil {
 		// Log failed session revocation
-		s.logActivity(userID, sessionID, models.ActivitySessionRevoke, ipAddress, userAgent, 
+		s.logActivity(userID, sessionID, models.ActivitySessionRevoke, ipAddress, userAgent,
 			fmt.Sprintf("Session revocation failed: %s", sessionID), false)
 		return err
 	}
-
-	// Log successful session revocation
-	s.logActivity(userID, sessionID, models.ActivitySessionRevoke, ipAddress, userAgent, 
-		fmt.Sprintf("Session revoked successfully: %s", sessionID), true)
 
 	return nil
 }
@@ -199,14 +195,10 @@ func (s *AuthService) RevokeAllSessions(userID string, ipAddress, userAgent stri
 	err := s.sessionRepo.RevokeAllUserSessions(userID)
 	if err != nil {
 		// Log failed session revocation
-		s.logActivity(userID, "", models.ActivitySessionRevoke, ipAddress, userAgent, 
+		s.logActivity(userID, "", models.ActivitySessionRevoke, ipAddress, userAgent,
 			"All sessions revocation failed", false)
 		return err
 	}
-
-	// Log successful session revocation
-	s.logActivity(userID, "", models.ActivitySessionRevoke, ipAddress, userAgent, 
-		"All sessions revoked successfully", true)
 
 	return nil
 }
