@@ -77,14 +77,12 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 		return nil, errors.New("invalid credentials")
 	}
 
-	// Generate JWT token
 	expiresAt := time.Now().Add(time.Hour * 24)
 	token, err := s.generateJWT(user.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create session
 	session := &models.UserSession{
 		UserID:     user.ID,
 		Token:      token,
