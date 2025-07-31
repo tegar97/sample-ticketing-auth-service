@@ -27,7 +27,8 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepository(dbConnections.Master, dbConnections.Replica)
-	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
+	sessionRepo := repository.NewSessionRepository(dbConnections.Master, dbConnections.Replica)
+	authService := service.NewAuthService(userRepo, sessionRepo, cfg.JWTSecret)
 	authHandler := handler.NewAuthHandler(authService)
 
 	r := gin.Default()
@@ -70,10 +71,19 @@ func main() {
 
 	api := r.Group("/api/v1")
 	{
+		// Authentication endpoints
 		api.POST("/register", authHandler.Register)
 		api.POST("/login", authHandler.Login)
 		api.GET("/profile", authHandler.GetProfile)
 		api.GET("/validate", authHandler.ValidateToken)
+
+		// Session management endpoints
+		api.GET("/sessions", authHandler.GetSessions)
+		api.POST("/sessions/revoke", authHandler.RevokeSession)
+		api.POST("/sessions/revoke-all", authHandler.RevokeAllSessions)
+
+		// Activity logging endpoints
+		api.GET("/activities", authHandler.GetActivities)
 	}
 
 	port := os.Getenv("PORT")

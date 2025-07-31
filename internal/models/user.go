@@ -25,6 +25,61 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token     string      `json:"token"`
+	User      User        `json:"user"`
+	SessionID string      `json:"session_id"`
+	ExpiresAt time.Time   `json:"expires_at"`
 }
+
+// Session Management Models
+type UserSession struct {
+	ID          string    `json:"id" db:"id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	Token       string    `json:"token" db:"token"`
+	DeviceInfo  string    `json:"device_info" db:"device_info"`
+	IPAddress   string    `json:"ip_address" db:"ip_address"`
+	UserAgent   string    `json:"user_agent" db:"user_agent"`
+	IsActive    bool      `json:"is_active" db:"is_active"`
+	ExpiresAt   time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	LastUsedAt  time.Time `json:"last_used_at" db:"last_used_at"`
+}
+
+type UserActivity struct {
+	ID          string    `json:"id" db:"id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	SessionID   string    `json:"session_id" db:"session_id"`
+	Action      string    `json:"action" db:"action"`
+	IPAddress   string    `json:"ip_address" db:"ip_address"`
+	UserAgent   string    `json:"user_agent" db:"user_agent"`
+	Details     string    `json:"details" db:"details"`
+	Success     bool      `json:"success" db:"success"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+}
+
+// Session Management Requests/Responses
+type SessionListResponse struct {
+	Sessions []UserSession `json:"sessions"`
+	Total    int           `json:"total"`
+}
+
+type ActivityListResponse struct {
+	Activities []UserActivity `json:"activities"`
+	Total      int            `json:"total"`
+}
+
+type RevokeSessionRequest struct {
+	SessionID string `json:"session_id" binding:"required"`
+}
+
+// Activity Types
+const (
+	ActivityLogin          = "login"
+	ActivityLogout         = "logout"
+	ActivityRegister       = "register"
+	ActivityTokenValidate  = "token_validate"
+	ActivitySessionRevoke  = "session_revoke"
+	ActivityPasswordChange = "password_change"
+	ActivityProfileUpdate  = "profile_update"
+)

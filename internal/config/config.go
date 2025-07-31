@@ -184,6 +184,69 @@ func AutoMigrate(db *sql.DB) error {
 		return fmt.Errorf("failed to create users table: %v", err)
 	}
 
+	// Create user sessions table
+	createSessionsTable := `
+	CREATE TABLE IF NOT EXISTS user_sessions (
+		id VARCHAR(36) PRIMARY KEY,
+		user_id VARCHAR(36) NOT NULL,
+		token TEXT NOT NULL,
+		device_info VARCHAR(500),
+		ip_address VARCHAR(45),
+		user_agent TEXT,
+		is_active BOOLEAN DEFAULT true,
+		expires_at TIMESTAMP NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+	CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active, expires_at);
+
+	-- Create trigger for user_sessions updated_at
+	DROP TRIGGER IF EXISTS update_user_sessions_updated_at ON user_sessions;
+	CREATE TRIGGER update_user_sessions_updated_at
+		BEFORE UPDATE ON user_sessions
+		FOR EACH ROW
+		EXECUTE FUNCTION update_updated_at_column();
+	`
+
+	_, err = db.Exec(createSessionsTable)
+	if err != nil {
+		return fmt.Errorf("failed to create user_sessions table: %v", err)
+	}
+
+	// Create user activities table
+	createActivitiesTable := `
+	CREATE TABLE IF NOT EXISTS user_activities (
+		id VARCHAR(36) PRIMARY KEY,
+		user_id VARCHAR(36) NOT NULL,
+		session_id VARCHAR(36),
+		action VARCHAR(100) NOT NULL,
+		ip_address VARCHAR(45),
+		user_agent TEXT,
+		details TEXT,
+		success BOOLEAN DEFAULT true,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (session_id) REFERENCES user_sessions(id) ON DELETE SET NULL
+	);
+
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_user_activities_user_id ON user_activities(user_id);
+	CREATE INDEX IF NOT EXISTS idx_user_activities_session_id ON user_activities(session_id);
+	CREATE INDEX IF NOT EXISTS idx_user_activities_action ON user_activities(action);
+	CREATE INDEX IF NOT EXISTS idx_user_activities_created_at ON user_activities(created_at);
+	`
+
+	_, err = db.Exec(createActivitiesTable)
+	if err != nil {
+		return fmt.Errorf("failed to create user_activities table: %v", err)
+	}
+
 	log.Println("Database migration completed successfully")
 	return nil
 }
